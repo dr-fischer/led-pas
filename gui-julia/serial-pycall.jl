@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.16.1
+# v0.15.1
 
 using Markdown
 using InteractiveUtils
@@ -13,11 +13,14 @@ macro bind(def, element)
     end
 end
 
+# ╔═╡ b94b0cf1-e32b-439b-853a-90a25f21c49f
+begin	
+	ENV["PYTHON"] = "/Users/dfischer/opt/miniconda3/bin/python3"
+	using Pkg; Pkg.build("PyCall")
+end
+
 # ╔═╡ ac1e8884-4c94-11eb-3351-0b7a252029f4
 using Plots, PlutoUI, LibSerialPort, PyCall
-
-# ╔═╡ 80d4859e-bf0b-4b3a-be8f-fd5268df66ce
-gr()
 
 # ╔═╡ c8f6227e-5166-4afd-a4d3-a5938ec4bbe8
 html"<button onclick='present()'>Front Panel Mode</button>"
@@ -26,21 +29,16 @@ html"<button onclick='present()'>Front Panel Mode</button>"
 md"# LED-PAS Interface"
 
 # ╔═╡ cc76b557-566b-4c13-8a7c-acaee254b2ac
+begin
+	list_ports()
+	ports = get_port_list()
+	
 md"""
-**Port Name:** $(@bind name TextField((50,1); default="/dev/ttyACM0"))
+**Port Name:** $(@bind name Select(append!(["Select Port from List..."], ports); default="Select Port from List..."))    **Baudrate:** $(@bind baudstring Select(["2400", "2400", "9600", "19200", "115200"], default = "115200"))
 """
 
-# ╔═╡ a60ed900-066a-4503-baaa-ca476ceb340d
-md"""
-**Baudrate:** $(@bind baudstring Select(["2400", "2400", "9600", "19200", "115200"], default = "115200"))
-"""
-
-# ╔═╡ 824ef808-d4be-4cb9-a30a-c88d3668efb2
-md"""
-**This doesn't do anything yet:**
-
-$(@bind io Radio(["On", "Off"], default = "Off"))
-"""
+# **Port Name:** $(@bind name TextField((50,1); default="/dev/ttyACM0"))
+end
 
 # ╔═╡ 4f6928e6-58e2-461b-97ef-1b8daa9da10a
 md"""
@@ -50,39 +48,45 @@ md"""
 # ╔═╡ fb55ca44-57ba-11eb-0a99-fd27d2fae622
 @bind gfft Button("Get FFT 📊")
 
-# ╔═╡ 0d6c1ec4-64c2-4d3e-934a-1ee3957d9359
+# ╔═╡ be797dd7-301f-4ef9-b254-c9dc24fde57f
+md"Frequency Offset: $(@bind offset NumberField(-15:1:15; default=0)) (Hz)"
+
+# ╔═╡ 824ef808-d4be-4cb9-a30a-c88d3668efb2
 md"""
-Frequency Offset: $(@bind offset NumberField(-15:1:15; default=0)) (Hz)
+**This doesn't do anything yet:** $(@bind onoff Radio(["On", "Off"], default = "Off"))
 """
+
+# ╔═╡ 3325fa33-45b9-461a-a55f-3c5ec54bf341
+baudrate = parse(Int, baudstring);
 
 # ╔═╡ 066f1055-2d9a-4757-9146-6d28acfcf8f8
 begin
 	# while io == "On"
 		gfft
 		f
+
 		py"""
-		import serial
-		import time
-		import pandas as pd
-		import numpy as np
-		import pyqtgraph as pg
+		from serial import Serial
+		from time import sleep
 
 		def getFFT(port = '/dev/ttyACM0', baud = 115200, timeout = 2): 
-			ser = serial.Serial(port, baud, timeout = timeout)
+			ser = Serial(port, baud, timeout = timeout)
 			ser.write(bytes("fft", 'utf-8'))
-			time.sleep(1)
+			sleep(2)
 			fftdat = ser.readlines()
 			ser.close()
 
 			return fftdat
 		"""
-		fftdat = py"getFFT"()
+	
+		fftdat = py"getFFT"(port = name, baud = baudrate)
 		x = zeros(length(fftdat))
 		y = zeros(length(fftdat))
 		for i in 1:length(fftdat)
 			x[i] = parse(Float64, split(fftdat[i], ", ")[1]) + offset
 			y[i] = parse(Float64, split(fftdat[i], ", ")[2])
 		end
+	
 		# sleep(5)
 	# end
 end
@@ -110,33 +114,33 @@ begin
 
 end
 
-# ╔═╡ 3325fa33-45b9-461a-a55f-3c5ec54bf341
-baudrate = parse(Int, baudstring);
-
 # ╔═╡ 254222aa-093b-4a37-854d-153c8f672965
 function setfreq(freq)
 	
 	LibSerialPort.open(name, baudrate) do sp
-	sleep(1)
+	sleep(0.2)
 
 	write(sp, "f."*string(freq))
-	sleep(1)
+	sleep(0.5)
 	
 	if bytesavailable(sp) > 0
 		echomsg = String(read(sp))
+	else
+		echomsg = "No response!"
 	end
 		
     return echomsg
 	end
 end;
 
-# ╔═╡ 70b2c226-a948-4e98-b5e8-4501a60866ee
+# ╔═╡ 5bb9d2c1-acd4-4a55-a42c-4a224088e6d7
 setfreq(f)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 LibSerialPort = "a05a14c7-6e3b-5ba9-90a2-45558833e1df"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
@@ -1004,21 +1008,20 @@ version = "0.9.1+5"
 
 # ╔═╡ Cell order:
 # ╠═ac1e8884-4c94-11eb-3351-0b7a252029f4
-# ╠═80d4859e-bf0b-4b3a-be8f-fd5268df66ce
 # ╟─c8f6227e-5166-4afd-a4d3-a5938ec4bbe8
 # ╟─fec5fb9a-2c72-4c0a-b908-9f09d649b860
 # ╟─cc76b557-566b-4c13-8a7c-acaee254b2ac
-# ╟─a60ed900-066a-4503-baaa-ca476ceb340d
-# ╟─824ef808-d4be-4cb9-a30a-c88d3668efb2
 # ╟─4f6928e6-58e2-461b-97ef-1b8daa9da10a
-# ╟─70b2c226-a948-4e98-b5e8-4501a60866ee
+# ╟─5bb9d2c1-acd4-4a55-a42c-4a224088e6d7
 # ╟─fb55ca44-57ba-11eb-0a99-fd27d2fae622
 # ╟─0e397d0e-4c9c-11eb-0f55-9b7b6052f704
 # ╟─57a290ea-53f2-4188-bcad-c42c2445d33a
 # ╟─df6cbbd4-2001-43fc-9dc8-09e76cf5bc43
-# ╟─0d6c1ec4-64c2-4d3e-934a-1ee3957d9359
+# ╟─be797dd7-301f-4ef9-b254-c9dc24fde57f
+# ╟─b94b0cf1-e32b-439b-853a-90a25f21c49f
 # ╟─066f1055-2d9a-4757-9146-6d28acfcf8f8
 # ╟─254222aa-093b-4a37-854d-153c8f672965
+# ╠═824ef808-d4be-4cb9-a30a-c88d3668efb2
 # ╟─3325fa33-45b9-461a-a55f-3c5ec54bf341
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
