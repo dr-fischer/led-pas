@@ -19,8 +19,9 @@ begin
 	using Pkg; Pkg.build("PyCall")
 end
 
+
 # ╔═╡ ac1e8884-4c94-11eb-3351-0b7a252029f4
-using Plots, PlutoUI, LibSerialPort, PyCall
+using Plots, PlutoUI, LibSerialPort, PyCall, CSV, DataFrames, DataStructures, Dates
 
 # ╔═╡ c8f6227e-5166-4afd-a4d3-a5938ec4bbe8
 html"<button onclick='present()'>Front Panel Mode</button>"
@@ -42,77 +43,70 @@ end
 
 # ╔═╡ 4f6928e6-58e2-461b-97ef-1b8daa9da10a
 md"""
-**Modulation Frequency:** $(@bind f NumberField(1:10000; default=1750)) (Hz)
+**Modulation Frequency:** $(@bind f NumberField(1:10000; default=1320)) (Hz)
 """
 
 # ╔═╡ fb55ca44-57ba-11eb-0a99-fd27d2fae622
-@bind gfft Button("Get FFT 📊")
+md"""
+$(@bind gfft Button("Get FFT 📊")) $(@bind clearbuffer Button("Clear Buffer"))
+"""
+
+# ╔═╡ 761f1560-b30b-4672-8d51-e743fc5d222c
+md"""
+**Datafile Path:** $(@bind fpath TextField((80, 1); default = "/Users/dfischer/Documents/PAS-output/"*string(Dates.format(now(), "YYYY-mm-dd_HHMMSS"))*".csv"))
+"""
 
 # ╔═╡ be797dd7-301f-4ef9-b254-c9dc24fde57f
 md"Frequency Offset: $(@bind offset NumberField(-15:1:15; default=0)) (Hz)"
 
-# ╔═╡ 824ef808-d4be-4cb9-a30a-c88d3668efb2
+# ╔═╡ 6c65edea-01b6-4ce7-9447-652b1cd56f45
 md"""
-**This doesn't do anything yet:** $(@bind onoff Radio(["On", "Off"], default = "Off"))
+**Plot Backend:** $(@bind pltback Select(["GR", "Plotly"], default = "GR"))
 """
+
+# ╔═╡ 066f1055-2d9a-4757-9146-6d28acfcf8f8
+# begin
+# 	# while io == "On"
+# 		gfft
+
+# 		py"""
+# 		from serial import Serial
+# 		from time import sleep
+
+# 		def getFFT(port = '/dev/ttyACM0', baud = 115200, timeout = 2): 
+# 			ser = Serial(port, baud, timeout = timeout)
+# 			ser.write(bytes("fft", 'utf-8'))
+# 			sleep(2)
+# 			fftdat = ser.readlines()
+# 			ser.close()
+
+# 			return fftdat
+# 		"""
+	
+# 		fftdat = py"getFFT"(port = name, baud = baudrate)
+# 		x = zeros(length(fftdat))
+# 		y = zeros(length(fftdat))
+# 		for i in 1:length(fftdat)
+# 			x[i] = parse(Float64, split(fftdat[i], ", ")[1]) + offset
+# 			y[i] = parse(Float64, split(fftdat[i], ", ")[2])
+# 		end
+	
+# 		# sleep(5)
+# 	# end
+# end
+
+# ╔═╡ 412c6a8e-8775-462d-a6b4-17b0ac5a2afe
+begin
+	pltback
+	if pltback == "Plotly"
+		plotly()
+	else
+		gr()
+	end
+end
 
 # ╔═╡ 3325fa33-45b9-461a-a55f-3c5ec54bf341
 baudrate = parse(Int, baudstring);
-
-# ╔═╡ 066f1055-2d9a-4757-9146-6d28acfcf8f8
-begin
-	# while io == "On"
-		gfft
-		f
-
-		py"""
-		from serial import Serial
-		from time import sleep
-
-		def getFFT(port = '/dev/ttyACM0', baud = 115200, timeout = 2): 
-			ser = Serial(port, baud, timeout = timeout)
-			ser.write(bytes("fft", 'utf-8'))
-			sleep(2)
-			fftdat = ser.readlines()
-			ser.close()
-
-			return fftdat
-		"""
-	
-		fftdat = py"getFFT"(port = name, baud = baudrate)
-		x = zeros(length(fftdat))
-		y = zeros(length(fftdat))
-		for i in 1:length(fftdat)
-			x[i] = parse(Float64, split(fftdat[i], ", ")[1]) + offset
-			y[i] = parse(Float64, split(fftdat[i], ", ")[2])
-		end
-	
-		# sleep(5)
-	# end
-end
-
-# ╔═╡ 57a290ea-53f2-4188-bcad-c42c2445d33a
-md"""
-Frequency at Maximum Signal ($f_{max}$) = $(round(x[findmax(y)[2]], sigdigits = 4))
-
-Maximum Signal ($S_{max}$) = $(round(findmax(y)[1], sigdigits = 6))
-
-"""
-
-# ╔═╡ df6cbbd4-2001-43fc-9dc8-09e76cf5bc43
-md"""
-X-axis Minimum: $(@bind xmin Slider(1:10:5000, default = f * 0.98))   X-axis Maximum: $(@bind xmax Slider(1:10:5000, default = f * 1.03))  
-
-Y-axis Maximum: $(@bind ymax Slider(1:maximum(y)*1.1, default = maximum(y)*1.1))
-
-"""
-
-# ╔═╡ 0e397d0e-4c9c-11eb-0f55-9b7b6052f704
-begin
-	vline([f], width=2, linestyle = :dot, color = :grey, label = "Modulation Freq.")
-	bar!(x, y, legend = :topright, linecolor=1, xlab = "Frequency (Hz)", ylab = "Magnitude", xlims = [xmin, xmax], ylims = [0, ymax], border= :box, label = "FFT", fillcolor = 1)
-
-end
 
 # ╔═╡ 254222aa-093b-4a37-854d-153c8f672965
 function setfreq(freq)
@@ -121,7 +115,7 @@ function setfreq(freq)
 	sleep(0.2)
 
 	write(sp, "f."*string(freq))
-	sleep(0.5)
+	sleep(1)
 	
 	if bytesavailable(sp) > 0
 		echomsg = String(read(sp))
@@ -136,9 +130,82 @@ end;
 # ╔═╡ 5bb9d2c1-acd4-4a55-a42c-4a224088e6d7
 setfreq(f)
 
+# ╔═╡ 6e34c9de-a238-443f-b378-592dd1e67f69
+begin
+	clearbuffer
+	ticks_per_sec = 1/5
+	ΔT = 1/ticks_per_sec
+	last_time = [0.0]
+	buffsize=100
+	cb = CircularBuffer{Float64}(buffsize)
+	cbt = CircularBuffer{Float64}(buffsize)
+	fill!(cb,0.0)
+	fill!(cbt,0.0)
+end;
+
+# ╔═╡ 14c9aecf-f29d-49ec-847f-47605c64763a
+@bind ticks Clock(ΔT,true)
+
+# ╔═╡ b2bc8859-f25d-41f3-82f2-64fe4243a1f2
+begin
+	ticks
+	gfft
+		py"""
+		from serial import Serial
+		from time import sleep
+
+		def getFFT(port = '/dev/ttyACM0', baud = 115200, timeout = 1): 
+			ser = Serial(port, baud, timeout = timeout)
+			ser.write(bytes("fft", 'utf-8'))
+			sleep(1)
+			fftdat = ser.readlines()
+			ser.close()
+
+			return fftdat
+		"""
+	
+		fftdat = py"getFFT"(port = name, baud = baudrate)
+		x = zeros(length(fftdat))
+		y = zeros(length(fftdat))
+		for i in 1:length(fftdat)
+			x[i] = parse(Float64, split(fftdat[i], ", ")[1]) + offset
+			y[i] = parse(Float64, split(fftdat[i], ", ")[2])
+		end
+	new_val = y[x .== f][1]
+	push!(cb, new_val)
+	# new_time=time()
+	# delta = new_time-last_time[1]
+	# last_time[1]=new_time
+	# push!(cbt,1/delta)
+	writedat = DataFrame(Time = now(), Signal = new_val)
+	CSV.write(fpath, writedat, append = true)
+end;
+
+# ╔═╡ df6cbbd4-2001-43fc-9dc8-09e76cf5bc43
+md"""
+X-axis Minimum: $(@bind xmin Slider(1:10:5000, default = f * 0.98))   X-axis Maximum: $(@bind xmax Slider(1:10:5000, default = f * 1.03))  
+
+Y-axis Maximum: $(@bind ymax Slider(1:maximum(y)*1.1, default = maximum(y[x .== f])*1.1))
+
+"""
+
+# ╔═╡ 4aa9f100-b082-4780-9027-5dd6e87503c5
+begin
+	ticks
+	pltback
+	p1 = vline([f], width=2, linestyle = :dot, color = :grey, label = "Modulation Freq.")
+	bar!(x[1000:3000], y[1000:3000], legend = :topright, linecolor=1, xlab = "Frequency (Hz)", ylab = "Magnitude", xlims = [xmin, xmax], ylims = [0, ymax], border= :box, label = "FFT", fillcolor = 1)
+	p2 = plot(cb, border = :box, grid = false, xlims = (0, 100), xlab = "n", ylab = "Magnitude at f", label = "Latest: "*string(cb[100]), legend = :topleft)
+	plot(p1, p2, layout = (2, 1))
+end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 LibSerialPort = "a05a14c7-6e3b-5ba9-90a2-45558833e1df"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
@@ -146,6 +213,9 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 
 [compat]
+CSV = "~0.9.6"
+DataFrames = "~1.2.2"
+DataStructures = "~0.18.10"
 LibSerialPort = "~0.5.0"
 Plots = "~1.22.3"
 PlutoUI = "~0.7.14"
@@ -177,11 +247,23 @@ git-tree-sha1 = "19a35467a82e236ff51bc17a3a44b69ef35185a2"
 uuid = "6e34b625-4abd-537c-b88f-471c36dfa7a0"
 version = "1.0.8+0"
 
+[[CSV]]
+deps = ["CodecZlib", "Dates", "FilePathsBase", "InlineStrings", "Mmap", "Parsers", "PooledArrays", "SentinelArrays", "Tables", "Unicode", "WeakRefStrings"]
+git-tree-sha1 = "567d865fc5702dc094e4519daeab9e9d44d66c63"
+uuid = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+version = "0.9.6"
+
 [[Cairo_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "LZO_jll", "Libdl", "Pixman_jll", "Pkg", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
 git-tree-sha1 = "f2202b55d816427cd385a9a4f3ffb226bee80f99"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.16.1+0"
+
+[[CodecZlib]]
+deps = ["TranscodingStreams", "Zlib_jll"]
+git-tree-sha1 = "ded953804d019afa9a3f98981d99b33e3db7b6da"
+uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
+version = "0.7.0"
 
 [[ColorSchemes]]
 deps = ["ColorTypes", "Colors", "FixedPointNumbers", "Random"]
@@ -223,10 +305,21 @@ git-tree-sha1 = "9f02045d934dc030edad45944ea80dbd1f0ebea7"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
 version = "0.5.7"
 
+[[Crayons]]
+git-tree-sha1 = "3f71217b538d7aaee0b69ab47d9b7724ca8afa0d"
+uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
+version = "4.0.4"
+
 [[DataAPI]]
 git-tree-sha1 = "cc70b17275652eb47bc9e5f81635981f13cea5c8"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.9.0"
+
+[[DataFrames]]
+deps = ["Compat", "DataAPI", "Future", "InvertedIndices", "IteratorInterfaceExtensions", "LinearAlgebra", "Markdown", "Missings", "PooledArrays", "PrettyTables", "Printf", "REPL", "Reexport", "SortingAlgorithms", "Statistics", "TableTraits", "Tables", "Unicode"]
+git-tree-sha1 = "d785f42445b63fc86caa08bb9a9351008be9b765"
+uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+version = "1.2.2"
 
 [[DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
@@ -279,6 +372,12 @@ git-tree-sha1 = "d8a578692e3077ac998b50c0217dfd67f21d1e5f"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
 version = "4.4.0+0"
 
+[[FilePathsBase]]
+deps = ["Dates", "Mmap", "Printf", "Test", "UUIDs"]
+git-tree-sha1 = "7fb0eaac190a7a68a56d2407a6beff1142daf844"
+uuid = "48062228-2e41-5def-b9a4-89aafe57970f"
+version = "0.9.12"
+
 [[FixedPointNumbers]]
 deps = ["Statistics"]
 git-tree-sha1 = "335bfdceacc84c5cdf16aadc768aa5ddfc5383cc"
@@ -309,11 +408,15 @@ git-tree-sha1 = "aa31987c2ba8704e23c6c8ba8a4f769d5d7e4f91"
 uuid = "559328eb-81f9-559d-9380-de523a88c83c"
 version = "1.0.10+0"
 
+[[Future]]
+deps = ["Random"]
+uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
+
 [[GLFW_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pkg", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll"]
-git-tree-sha1 = "dba1e8614e98949abfa60480b13653813d8f0157"
+git-tree-sha1 = "0c603255764a1fa0b61752d2bec14cfbd18f7fe8"
 uuid = "0656b61e-2033-5cc2-a64a-77c0f6c09b89"
-version = "3.3.5+0"
+version = "3.3.5+1"
 
 [[GR]]
 deps = ["Base64", "DelimitedFiles", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Printf", "Random", "Serialization", "Sockets", "Test", "UUIDs"]
@@ -385,9 +488,20 @@ git-tree-sha1 = "098e4d2c533924c921f9f9847274f2ad89e018b8"
 uuid = "83e8ac13-25f8-5344-8a64-a9f2b223428f"
 version = "0.5.0"
 
+[[InlineStrings]]
+deps = ["Parsers"]
+git-tree-sha1 = "19cb49649f8c41de7fea32d089d37de917b553da"
+uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
+version = "1.0.1"
+
 [[InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+
+[[InvertedIndices]]
+git-tree-sha1 = "bee5f1ef5bf65df56bdd2e40447590b272a5471f"
+uuid = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
+version = "1.1.0"
 
 [[IterTools]]
 git-tree-sha1 = "05110a2ab1fc5f932622ffea2a003221f4782c18"
@@ -634,10 +748,22 @@ git-tree-sha1 = "d1fb76655a95bf6ea4348d7197b22e889a4375f4"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.14"
 
+[[PooledArrays]]
+deps = ["DataAPI", "Future"]
+git-tree-sha1 = "a193d6ad9c45ada72c14b731a318bedd3c2f00cf"
+uuid = "2dfb63ee-cc39-5dd5-95bd-886bf059d720"
+version = "1.3.0"
+
 [[Preferences]]
 deps = ["TOML"]
 git-tree-sha1 = "00cfd92944ca9c760982747e9a1d0d5d86ab1e5a"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
+version = "1.2.2"
+
+[[PrettyTables]]
+deps = ["Crayons", "Formatting", "Markdown", "Reexport", "Tables"]
+git-tree-sha1 = "69fd065725ee69950f3f58eceb6d144ce32d627d"
+uuid = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 version = "1.2.2"
 
 [[Printf]]
@@ -694,6 +820,12 @@ deps = ["Dates"]
 git-tree-sha1 = "0b4b7f1393cff97c33891da2a0bf69c6ed241fda"
 uuid = "6c6a2e73-6563-6170-7368-637461726353"
 version = "1.1.0"
+
+[[SentinelArrays]]
+deps = ["Dates", "Random"]
+git-tree-sha1 = "54f37736d8934a12a200edea2f9206b03bdf3159"
+uuid = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
+version = "1.3.7"
 
 [[Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -772,6 +904,12 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
+[[TranscodingStreams]]
+deps = ["Random", "Test"]
+git-tree-sha1 = "216b95ea110b5972db65aa90f88d8d89dcb8851c"
+uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
+version = "0.9.6"
+
 [[URIs]]
 git-tree-sha1 = "97bbe755a53fe859669cd907f2d96aee8d2c1355"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
@@ -800,6 +938,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Wayland_jll"]
 git-tree-sha1 = "2839f1c1296940218e35df0bbb220f2a79686670"
 uuid = "2381bf8a-dfd0-557d-9999-79630e7b1b91"
 version = "1.18.0+4"
+
+[[WeakRefStrings]]
+deps = ["DataAPI", "InlineStrings", "Parsers"]
+git-tree-sha1 = "c69f9da3ff2f4f02e811c3323c22e5dfcb584cfa"
+uuid = "ea10d353-3f73-51f8-a26c-33c1cb351aa5"
+version = "1.4.1"
 
 [[XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "Zlib_jll"]
@@ -1010,18 +1154,22 @@ version = "0.9.1+5"
 # ╠═ac1e8884-4c94-11eb-3351-0b7a252029f4
 # ╟─c8f6227e-5166-4afd-a4d3-a5938ec4bbe8
 # ╟─fec5fb9a-2c72-4c0a-b908-9f09d649b860
+# ╟─14c9aecf-f29d-49ec-847f-47605c64763a
 # ╟─cc76b557-566b-4c13-8a7c-acaee254b2ac
 # ╟─4f6928e6-58e2-461b-97ef-1b8daa9da10a
-# ╟─5bb9d2c1-acd4-4a55-a42c-4a224088e6d7
 # ╟─fb55ca44-57ba-11eb-0a99-fd27d2fae622
-# ╟─0e397d0e-4c9c-11eb-0f55-9b7b6052f704
-# ╟─57a290ea-53f2-4188-bcad-c42c2445d33a
+# ╟─4aa9f100-b082-4780-9027-5dd6e87503c5
 # ╟─df6cbbd4-2001-43fc-9dc8-09e76cf5bc43
+# ╟─761f1560-b30b-4672-8d51-e743fc5d222c
 # ╟─be797dd7-301f-4ef9-b254-c9dc24fde57f
+# ╟─6c65edea-01b6-4ce7-9447-652b1cd56f45
+# ╟─5bb9d2c1-acd4-4a55-a42c-4a224088e6d7
 # ╟─b94b0cf1-e32b-439b-853a-90a25f21c49f
 # ╟─066f1055-2d9a-4757-9146-6d28acfcf8f8
 # ╟─254222aa-093b-4a37-854d-153c8f672965
-# ╠═824ef808-d4be-4cb9-a30a-c88d3668efb2
+# ╟─412c6a8e-8775-462d-a6b4-17b0ac5a2afe
 # ╟─3325fa33-45b9-461a-a55f-3c5ec54bf341
+# ╟─6e34c9de-a238-443f-b378-592dd1e67f69
+# ╟─b2bc8859-f25d-41f3-82f2-64fe4243a1f2
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
