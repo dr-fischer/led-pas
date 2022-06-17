@@ -9,8 +9,8 @@ String message;
 
 // fft:
 #include "arduinoFFT.h"
-#define SAMPLES 16384              // must be power of 2
-#define SAMPLING_FREQUENCY 8096     // Hz
+#define SAMPLES 8192 // 16384              // must be power of 2
+#define SAMPLING_FREQUENCY 16384     // Hz
 #define PLOT_SIZE 512
 #define START_IND 100
 arduinoFFT FFT = arduinoFFT();
@@ -53,7 +53,7 @@ void loop() {
     inChar[i] = Serial.read();
     i++;
   }
-  delay(100);
+  delay(10);
   // convert message to string and clear input array:
   message = String(inChar);
   for(int n = 0; n<11; n++) {
@@ -77,6 +77,9 @@ void loop() {
           //wait...
         }
       }
+      for(int i=0; i<(end_ind); i++) {
+        // Serial.println(vReal[i]);
+      }
       FFT.Windowing(vReal, SAMPLES, FFT_WIN_TYP_RECTANGLE, FFT_FORWARD);
       FFT.Compute(vReal, vImag, SAMPLES, FFT_FORWARD);
       FFT.ComplexToMagnitude(vReal, vImag, SAMPLES);
@@ -87,11 +90,11 @@ void loop() {
         Serial.print(", ");
         Serial.println(vReal[i]);
       }
+      Serial.println("!!!!");
 //      Serial.println(millis() - t0);
   }
   useconds_refresh = micros();
   i = 0;
-  delay(900);
 }
 
 
