@@ -9,7 +9,7 @@ String message;
 
 // fft:
 #include "arduinoFFT.h"
-#define SAMPLES 8192 // 16384              // must be power of 2
+#define SAMPLES 16384              // must be power of 2
 #define SAMPLING_FREQUENCY 16384     // Hz
 #define PLOT_SIZE 512
 #define START_IND 100
@@ -31,7 +31,7 @@ void setup() {
   // setup output frequency:
   pinMode(OUTPUT_PIN, OUTPUT);
   analogWriteResolution(OUTPUT_RESOLUTION);
-  analogWriteFrequency(OUTPUT_PIN, 1750);
+  analogWriteFrequency(OUTPUT_PIN, 1370); // 1750
   analogWrite(OUTPUT_PIN, pow(2, OUTPUT_RESOLUTION) / 2);
 
   // setup serial port:
@@ -64,6 +64,7 @@ void loop() {
 
   // interpret message:
   if (message.startsWith("f.")) setFreq(message.substring(2, 6).toInt(), OUTPUT_PIN, OUTPUT_RESOLUTION);
+  if (message.startsWith("s.")) sweep(message, OUTPUT_PIN, OUTPUT_RESOLUTION);
   if (message.startsWith("fft")) {
     t0 = millis();
       for(int i=0; i<SAMPLES; i++)
@@ -97,9 +98,23 @@ void loop() {
   i = 0;
 }
 
-
 void setFreq(int freq, int pin, int resolution) {
   analogWriteFrequency(pin, freq);
   analogWrite(pin, pow(2, resolution) / 2);
   Serial.print("Freq Set to "); Serial.print(freq); Serial.println(" Hz");
+}
+
+void sweep(String frequncies, int pin, int resolution) {
+  String freqStrStart = frequncies.substring(2, 6);
+  String freqStrEnd = frequncies.substring(6, 10);
+  int endFreq = freqStrEnd.toInt();
+  int startFreq = freqStrStart.toInt();
+//   Serial.println(startFreq);
+//   Serial.println(endFreq);
+//   Serial.println(pin);
+  for (int n = 0; n <= (endFreq - startFreq); n++) {
+    analogWriteFrequency(pin, (startFreq + n));
+    analogWrite(pin, pow(2, resolution) / 2);
+    delay(2000);
+  }
 }
